@@ -402,7 +402,7 @@ export default function DailyTaskPlannerV2() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <select
               value={view}
               onChange={(e) => setView(e.target.value as "today" | "history")}
@@ -506,7 +506,7 @@ export default function DailyTaskPlannerV2() {
                     <button
                       type="button"
                       onClick={setStartToPreviousEnd}
-                      className="text-xs px-2 py-1 rounded-md border hover:bg-slate-50"
+                      className="text-xs px-2 py-1 rounded-md border hover:scale-105"
                     >
                       Use previous end
                     </button>
@@ -515,7 +515,7 @@ export default function DailyTaskPlannerV2() {
                       onClick={() => {
                         setStartTime("");
                       }}
-                      className="text-xs px-2 py-1 rounded-md border hover:bg-slate-50"
+                      className="text-xs px-2 py-1 rounded-md border hover:scale-105"
                     >
                       Clear
                     </button>
@@ -695,8 +695,16 @@ export default function DailyTaskPlannerV2() {
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="scheduled" name="Scheduled (h)" />
-                    <Bar dataKey="completed" name="Completed (h)" />
+                    <Bar
+                      dataKey="scheduled"
+                      name="Scheduled (h)"
+                      fill="var(--chart-scheduled)"
+                    />
+                    <Bar
+                      dataKey="completed"
+                      name="Completed (h)"
+                      fill="var(--chart-completed)"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

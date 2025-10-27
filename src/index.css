@@ -10,6 +10,9 @@
 	--text: #0f172a;
 	--muted: #6b7280;
 	--card: #ffffff;
+	/* chart colors */
+	--chart-scheduled: #0ea5e9; /* sky-500 */
+	--chart-completed: #06d455; /* cyan-500 */
 }
 
 html[data-theme="dark"] {
@@ -18,6 +21,9 @@ html[data-theme="dark"] {
 	--text: #e6eef8;
 	--muted: #94a3b8;
 	--card: #0b1322;
+	/* darker chart colors with higher contrast on dark backgrounds */
+	--chart-scheduled: #38bdf8; /* sky-300 */
+	--chart-completed: #67f995; /* cyan-300 */
 }
 
 /* Base colors */
@@ -61,4 +67,31 @@ html[data-theme="dark"] textarea {
 	background: transparent;
 	color: var(--text);
 	border-color: rgba(255,255,255,0.06);
+}
+
+/* Recharts: prevent hover-based visual changes that can make bars invisible
+	 in dark mode. This forces full opacity on rectangles and removes
+	 transitions so hover won't produce a sudden dark/bright overlay. */
+.recharts-rectangle,
+.recharts-bar-rectangle {
+	opacity: 1 !important;
+	transition: none !important;
+}
+.recharts-rectangle:hover,
+.recharts-bar-rectangle:hover {
+	opacity: 1 !important;
+	fill-opacity: 1 !important;
+}
+
+/* Tooltip background should follow theme */
+.recharts-tooltip-wrapper {
+	background: var(--card) !important;
+	color: var(--text) !important;
+	box-shadow: 0 6px 18px rgba(2,6,23,0.1) !important;
+	border-radius: 6px !important;
+}
+
+/* Legend icon colors - ensure they match our CSS variables */
+.recharts-legend-item rect {
+	fill: var(--chart-scheduled) !important;
 }
