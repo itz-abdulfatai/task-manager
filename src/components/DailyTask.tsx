@@ -60,7 +60,17 @@ const STORAGE_KEY = "daily-tasks-v2";
 
 // ---------- component ----------
 export default function DailyTaskPlannerV2() {
-  const [data, setData] = useState<DataMap>({}); // { '2025-10-27': [task,...], ... }
+  const [data, setData] = useState<DataMap>(() => {
+    // Hydrate from localStorage synchronously to avoid a race where the
+    // save-effect writes the initial empty object before we read stored data.
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as DataMap) : {};
+    } catch (err) {
+      console.warn("Could not load tasks from storage", err);
+      return {};
+    }
+  }); // { '2025-10-27': [task,...], ... }
   const [currentDate, setCurrentDate] = useState<string>(todayISO());
   const [name, setName] = useState<string>("");
   const [durHours, setDurHours] = useState<number>(0);
@@ -76,15 +86,8 @@ export default function DailyTaskPlannerV2() {
     {}
   ); // store scheduled timers so we can clear them
 
-  // load from storage
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setData(JSON.parse(raw) as DataMap);
-    } catch (e) {
-      console.warn("Could not load tasks", e);
-    }
-  }, []);
+  // NOTE: initial hydration is done in the useState lazy initializer above to
+  // avoid clobbering stored data with the empty initial state on first mount.
 
   // save when data changes
   useEffect(() => {
@@ -451,7 +454,7 @@ export default function DailyTaskPlannerV2() {
               className="bg-white p-5 rounded-2xl shadow-md ring-1 ring-slate-100 flex flex-col gap-4"
             >
               <div>
-                <label className="text-sm text-slate-600">Task name</label>
+                <label className="text-sm text-slate-500">Task name</label>
                 <input
                   list="names-suggest"
                   value={name}
@@ -468,7 +471,7 @@ export default function DailyTaskPlannerV2() {
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-sm text-slate-600">Hours</label>
+                  <label className="text-sm text-slate-500">Hours</label>
                   <input
                     type="number"
                     min={0}
@@ -479,7 +482,7 @@ export default function DailyTaskPlannerV2() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-slate-600">Minutes</label>
+                  <label className="text-sm text-slate-500">Minutes</label>
                   <input
                     type="number"
                     min={0}
@@ -490,7 +493,7 @@ export default function DailyTaskPlannerV2() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-slate-600">Start time</label>
+                  <label className="text-sm text-slate-500">Start time</label>
                   <input
                     type="time"
                     value={startTime}
@@ -560,7 +563,7 @@ export default function DailyTaskPlannerV2() {
 
               {error && <div className="text-sm text-red-600">{error}</div>}
 
-              <div className="mt-2 border-t pt-3 text-sm text-slate-600">
+              <div className="mt-2 border-t pt-3 text-sm text-slate-500">
                 <div>
                   Total scheduled:{" "}
                   <strong>{minutesToReadable(totalMinutes)}</strong>
@@ -750,7 +753,7 @@ export default function DailyTaskPlannerV2() {
 
         <footer className="mt-6 text-sm text-slate-500 text-center">
           Suggestions: try the CSV export to back up your history. Notifications
-          work while the page is open and permissioned.
+          work while the page is open and has permission.
         </footer>
       </div>
     </div>
