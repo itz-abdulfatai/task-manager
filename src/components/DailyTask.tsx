@@ -1,17 +1,4 @@
 import React, { useEffect, useState, useRef } from "react";
-
-// Daily Task Time Scheduler — v2
-// Single-file React component (default export). Tailwind classes used for styling.
-// Features added:
-// - Edit existing tasks (inline edit modal)
-// - Persist tasks by date (each calendar day is a separate "page")
-// - Name suggestions from historical task names (autocomplete via datalist)
-// - History page showing previous days (read-only) with tables
-// - Bar chart comparing scheduled vs completed hours across days (recharts)
-// - Browser notifications at task start and end times (while app is open / tab in foreground)
-// - CSV export/import and per-day reset
-// Usage: paste into a Vite/CRA React app (ensure Tailwind + recharts installed) and render <DailyTaskPlannerV2 />.
-
 import {
   BarChart,
   Bar,
@@ -22,34 +9,48 @@ import {
   Legend,
 } from "recharts";
 
+type NotificationPerm = NotificationPermission;
+
+interface Task {
+  id: string;
+  name: string;
+  durationMinutes: number;
+  startTime: string;
+  endTime: string;
+  done: boolean;
+}
+
+type DataMap = Record<string, Task[]>;
+
 // ---------- helpers ----------
-function timeToMinutes(timeStr) {
+function timeToMinutes(timeStr?: string | null): number | null {
   if (!timeStr) return null;
   const [hh, mm] = timeStr.split(":");
   return parseInt(hh || "0", 10) * 60 + parseInt(mm || "0", 10);
 }
-function minutesToTime(mins) {
-  if (mins == null || isNaN(mins)) return "--:--";
-  if (mins < 0) mins = 0;
-  if (mins > 24 * 60) mins = 24 * 60;
-  const h = Math.floor(mins / 60)
+function minutesToTime(mins: number | null | undefined): string {
+  if (mins == null || isNaN(mins as number)) return "--:--";
+  let m = mins as number;
+  if (m < 0) m = 0;
+  if (m > 24 * 60) m = 24 * 60;
+  const h = Math.floor(m / 60)
     .toString()
     .padStart(2, "0");
-  const m = Math.floor(mins % 60)
+  const mm = Math.floor(m % 60)
     .toString()
     .padStart(2, "0");
   if (h === "24") return "23:59";
-  return `${h}:${m}`;
+  return `${h}:${mm}`;
 }
-function minutesToReadable(mins) {
+function minutesToReadable(mins: number): string {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  const parts = [];
+  const parts: string[] = [];
   if (h) parts.push(`${h}h`);
   if (m) parts.push(`${m}m`);
   return parts.length ? parts.join(" ") : "0m";
 }
-function todayISO() {
+function todayISO(): string {
   const d = new Date();
   return d.toISOString().slice(0, 10);
 }
@@ -59,25 +60,27 @@ const STORAGE_KEY = "daily-tasks-v2";
 
 // ---------- component ----------
 export default function DailyTaskPlannerV2() {
-  const [data, setData] = useState({}); // { '2025-10-27': [task,...], ... }
-  const [currentDate, setCurrentDate] = useState(todayISO());
-  const [name, setName] = useState("");
-  const [durHours, setDurHours] = useState(0);
-  const [durMinutes, setDurMinutes] = useState(30);
-  const [startTime, setStartTime] = useState("");
-  const [error, setError] = useState("");
-  const [view, setView] = useState("today"); // 'today' | 'history'
-  const [editTask, setEditTask] = useState(null); // task object when editing
-  const [notificationPerm, setNotificationPerm] = useState(
+  const [data, setData] = useState<DataMap>({}); // { '2025-10-27': [task,...], ... }
+  const [currentDate, setCurrentDate] = useState<string>(todayISO());
+  const [name, setName] = useState<string>("");
+  const [durHours, setDurHours] = useState<number>(0);
+  const [durMinutes, setDurMinutes] = useState<number>(30);
+  const [startTime, setStartTime] = useState<string>("");
+  const [error, setError] = useState<string>("");
+  const [view, setView] = useState<"today" | "history">("today");
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const [notificationPerm, setNotificationPerm] = useState<NotificationPerm>(
     typeof Notification !== "undefined" ? Notification.permission : "default"
   );
-  const timersRef = useRef({}); // store scheduled timers so we can clear them
+  const timersRef = useRef<Record<string, { start?: number; end?: number }>>(
+    {}
+  ); // store scheduled timers so we can clear them
 
   // load from storage
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setData(JSON.parse(raw));
+      if (raw) setData(JSON.parse(raw) as DataMap);
     } catch (e) {
       console.warn("Could not load tasks", e);
     }
@@ -97,9 +100,9 @@ export default function DailyTaskPlannerV2() {
   }, [data, currentDate, notificationPerm]);
 
   // ---------- utilities ----------
-  const tasksForDate = (date) => data[date] || [];
+  const tasksForDate = (date: string): Task[] => data[date] || [];
 
-  const previousEndMinutes = (() => {
+  const previousEndMinutes: number | null = (() => {
     const list = tasksForDate(currentDate);
     return list.length ? timeToMinutes(list[list.length - 1].endTime) : null;
   })();
@@ -108,7 +111,10 @@ export default function DailyTaskPlannerV2() {
     ? minutesToTime(previousEndMinutes)
     : "00:00";
 
-  function calcEndTimeFromStart(startStr, durMin) {
+  function calcEndTimeFromStart(
+    startStr: string,
+    durMin: number
+  ): string | null {
     const startMin = timeToMinutes(startStr);
     if (startMin == null || isNaN(startMin)) return null;
     const endMin = startMin + durMin;
@@ -116,7 +122,7 @@ export default function DailyTaskPlannerV2() {
     return minutesToTime(endMin);
   }
 
-  function addOrUpdateTask(e) {
+  function addOrUpdateTask(e?: React.FormEvent<HTMLFormElement>) {
     e && e.preventDefault();
     setError("");
     const duration = Number(durHours) * 60 + Number(durMinutes);
@@ -124,14 +130,14 @@ export default function DailyTaskPlannerV2() {
     if (!startTime) return setError("Pick a start time.");
     if (duration <= 0) return setError("Duration must be greater than 0.");
 
-    const startMin = timeToMinutes(startTime);
+    const startMin = timeToMinutes(startTime) ?? 0;
     const list = tasksForDate(currentDate);
 
     // if creating a new task ensure it doesn't start before previous end
     if (
       !editTask &&
       list.length &&
-      startMin < timeToMinutes(list[list.length - 1].endTime)
+      startMin < (timeToMinutes(list[list.length - 1].endTime) ?? 0)
     ) {
       return setError(
         "Start time cannot be earlier than the previous task's end time."
@@ -160,8 +166,8 @@ export default function DailyTaskPlannerV2() {
       setData((d) => ({ ...d, [currentDate]: updated }));
       setEditTask(null);
     } else {
-      const newTask = {
-        id: Date.now() + Math.random().toString(36).slice(2, 7),
+      const newTask: Task = {
+        id: String(Date.now()) + Math.random().toString(36).slice(2, 7),
         name: name.trim(),
         durationMinutes: duration,
         startTime,
@@ -181,18 +187,18 @@ export default function DailyTaskPlannerV2() {
     setDurMinutes(30);
   }
 
-  function toggleDone(date, id) {
+  function toggleDone(date: string, id: string) {
     setData((d) => ({
       ...d,
       [date]: d[date].map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
     }));
   }
 
-  function removeTask(date, id) {
+  function removeTask(date: string, id: string) {
     setData((d) => ({ ...d, [date]: d[date].filter((t) => t.id !== id) }));
   }
 
-  function startEdit(task) {
+  function startEdit(task: Task) {
     setEditTask(task);
     setName(task.name);
     setDurHours(Math.floor(task.durationMinutes / 60));
@@ -218,8 +224,8 @@ export default function DailyTaskPlannerV2() {
   function clearAllTimers() {
     const timers = timersRef.current;
     Object.values(timers).forEach(({ start, end }) => {
-      if (start) clearTimeout(start);
-      if (end) clearTimeout(end);
+      if (start) window.clearTimeout(start);
+      if (end) window.clearTimeout(end);
     });
     timersRef.current = {};
   }
@@ -227,10 +233,12 @@ export default function DailyTaskPlannerV2() {
   function requestNotificationPermission() {
     if (!("Notification" in window))
       return alert("This browser does not support notifications.");
-    Notification.requestPermission().then((perm) => setNotificationPerm(perm));
+    Notification.requestPermission().then((perm) =>
+      setNotificationPerm(perm as NotificationPerm)
+    );
   }
 
-  function scheduleNotificationsForDate(date) {
+  function scheduleNotificationsForDate(date: string) {
     clearAllTimers();
     if (notificationPerm !== "granted") return;
 
@@ -246,20 +254,20 @@ export default function DailyTaskPlannerV2() {
       const endDate = new Date();
       endDate.setHours(eh, em, 0, 0);
 
-      const startDelta = startDate - now;
-      const endDelta = endDate - now;
+      const startDelta = startDate.getTime() - now.getTime();
+      const endDelta = endDate.getTime() - now.getTime();
 
       const timers = timersRef.current;
-      const entry = {};
+      const entry: { start?: number; end?: number } = {};
       if (startDelta > 0 && startDelta < 24 * 3600 * 1000) {
-        entry.start = setTimeout(() => {
+        entry.start = window.setTimeout(() => {
           new Notification(`Task starting: ${task.name}`, {
             body: `${task.startTime} → ${task.endTime}`,
           });
         }, startDelta);
       }
       if (endDelta > 0 && endDelta < 24 * 3600 * 1000) {
-        entry.end = setTimeout(() => {
+        entry.end = window.setTimeout(() => {
           new Notification(`Task ended: ${task.name}`, {
             body: `${task.startTime} → ${task.endTime}`,
           });
@@ -270,13 +278,17 @@ export default function DailyTaskPlannerV2() {
   }
 
   // ---------- history & analytics ----------
-  function uniqueNames() {
+  function uniqueNames(): string[] {
     const all = Object.values(data).flat();
     const uniq = Array.from(new Set(all.map((t) => t.name))).sort();
     return uniq;
   }
 
-  function buildChartData() {
+  function buildChartData(): {
+    date: string;
+    scheduled: number;
+    completed: number;
+  }[] {
     // produce [{date: '2025-10-26', scheduled: X, completed: Y}, ...]
     const rows = Object.keys(data)
       .sort()
@@ -299,7 +311,7 @@ export default function DailyTaskPlannerV2() {
   }
 
   function exportCSV() {
-    const rows = [];
+    const rows: string[] = [];
     Object.keys(data)
       .sort()
       .forEach((date) => {
@@ -311,8 +323,8 @@ export default function DailyTaskPlannerV2() {
               t.name,
               t.startTime,
               t.endTime,
-              t.durationMinutes,
-              t.done ? 1 : 0,
+              String(t.durationMinutes),
+              t.done ? "1" : "0",
             ].join(",")
           );
         });
@@ -330,12 +342,15 @@ export default function DailyTaskPlannerV2() {
     URL.revokeObjectURL(url);
   }
 
-  function importCSV(file) {
+  function importCSV(file?: File | null) {
+    if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target.result;
+    reader.onload = (e: ProgressEvent<FileReader>) => {
+      const result = e.target?.result;
+      if (typeof result !== "string") return;
+      const text = result;
       const lines = text.split(/\n/).filter(Boolean);
-      const out = { ...data };
+      const out: DataMap = { ...data };
       // skip header if present
       const startAt = lines[0] && lines[0].startsWith("date,") ? 1 : 0;
       for (let i = startAt; i < lines.length; i++) {
@@ -344,7 +359,7 @@ export default function DailyTaskPlannerV2() {
         if (!date) continue;
         if (!out[date]) out[date] = [];
         out[date].push({
-          id: Date.now() + Math.random().toString(36).slice(2, 7) + i,
+          id: String(Date.now()) + Math.random().toString(36).slice(2, 7) + i,
           name: name_ || "Imported",
           startTime: start || "00:00",
           endTime: end || "00:00",
@@ -357,8 +372,8 @@ export default function DailyTaskPlannerV2() {
     reader.readAsText(file);
   }
 
-  function resetDay(date) {
-    if (!confirm("Clear all tasks for " + date + "?")) return;
+  function resetDay(date: string) {
+    if (!window.confirm("Clear all tasks for " + date + "?")) return;
     setData((d) => ({ ...d, [date]: [] }));
   }
 
@@ -387,7 +402,7 @@ export default function DailyTaskPlannerV2() {
           <div className="flex items-center gap-3">
             <select
               value={view}
-              onChange={(e) => setView(e.target.value)}
+              onChange={(e) => setView(e.target.value as "today" | "history")}
               className="rounded-md border px-3 py-2"
             >
               <option value="today">Today</option>
@@ -421,7 +436,7 @@ export default function DailyTaskPlannerV2() {
                 <input
                   type="file"
                   accept="text/csv"
-                  onChange={(e) => importCSV(e.target.files[0])}
+                  onChange={(e) => importCSV(e.target.files?.[0] ?? null)}
                   className="hidden"
                 />
               </label>

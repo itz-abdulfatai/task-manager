@@ -1,5 +1,5 @@
 import { Route, Routes } from "react-router-dom";
-import DailyTaskPlannerV2 from "./components/DailyTask.jsx";
+import DailyTaskPlannerV2 from "./components/DailyTask";
 
 function App() {
   return (
