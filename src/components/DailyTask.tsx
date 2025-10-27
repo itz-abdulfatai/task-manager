@@ -123,7 +123,7 @@ export default function DailyTaskPlannerV2() {
   }
 
   function addOrUpdateTask(e?: React.FormEvent<HTMLFormElement>) {
-    e && e.preventDefault();
+    if (e) e.preventDefault();
     setError("");
     const duration = Number(durHours) * 60 + Number(durMinutes);
     if (!name.trim()) return setError("Give the task a name.");
@@ -387,11 +387,11 @@ export default function DailyTaskPlannerV2() {
   // ---------- UI ----------
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white p-6 sm:p-10">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <header className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-              Daily Task Scheduler — Smart
+              Daily Task Scheduler
             </h1>
             <p className="text-slate-500 mt-1">
               Plan, track, and review past days. Suggestions, charts, and
@@ -418,7 +418,7 @@ export default function DailyTaskPlannerV2() {
 
             <button
               onClick={requestNotificationPermission}
-              className="rounded-md px-3 py-2 border"
+              className="rounded-md px-3 py-2 border text-sm"
             >
               Notify: {notificationPerm}
             </button>
@@ -426,7 +426,7 @@ export default function DailyTaskPlannerV2() {
             <div className="flex gap-2">
               <button
                 onClick={exportCSV}
-                className="px-3 py-2 rounded-md bg-sky-600 text-white"
+                className="px-3 py-2 rounded-md bg-sky-600 text-white text-sm"
               >
                 Export CSV
               </button>
