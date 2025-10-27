@@ -1,1 +1,64 @@
 @import "tailwindcss";
+
+/* Theme variables and overrides. The app sets `data-theme="dark"` on the
+	 documentElement when the browser reports a dark preference. These vars are
+	 a lightweight way to make the app follow the OS/browser theme without
+	 changing many component classes. */
+:root {
+	--bg: #ffffff;
+	--bg-2: #f8fafc;
+	--text: #0f172a;
+	--muted: #6b7280;
+	--card: #ffffff;
+}
+
+html[data-theme="dark"] {
+	--bg: #0b1220;
+	--bg-2: #071124;
+	--text: #e6eef8;
+	--muted: #94a3b8;
+	--card: #0b1322;
+}
+
+/* Base colors */
+body {
+	background-color: var(--bg);
+	color: var(--text);
+}
+
+/* Make the main page wrapper follow our variables rather than Tailwind's
+	 light-only gradient. We use !important because Tailwind utilities are
+	 applied via classes with the same specificity. */
+html[data-theme="dark"] .min-h-screen {
+	background-image: none !important;
+	background: linear-gradient(to bottom, var(--bg) 0%, var(--bg-2) 100%) !important;
+}
+
+/* Gentle overrides for a few commonly-used Tailwind utility classes so text
+	 and panels don't stay bright in dark mode. These are intentionally small
+	 and safe; if you want full coverage later we can add more targeted
+	 dark: utilities per component. */
+html[data-theme="dark"] .text-slate-500 {
+	color: var(--muted) !important;
+}
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] .bg-slate-50,
+html[data-theme="dark"] .from-slate-50,
+html[data-theme="dark"] .to-white {
+	background: transparent !important;
+}
+
+/* Card helper class (optional) */
+.card {
+	background: var(--card);
+	color: var(--text);
+}
+
+/* Inputs & textareas — keep them readable in dark mode */
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+	background: transparent;
+	color: var(--text);
+	border-color: rgba(255,255,255,0.06);
+}
