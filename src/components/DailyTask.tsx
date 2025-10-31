@@ -50,6 +50,15 @@ function minutesToReadable(mins: number): string {
   if (m) parts.push(`${m}m`);
   return parts.length ? parts.join(" ") : "0m";
 }
+function formatTime12(timeStr?: string | null): string {
+  if (!timeStr) return "--:--";
+  if (!/^\d{1,2}:\d{2}$/.test(timeStr)) return timeStr;
+  const [hh, mm] = timeStr.split(":");
+  const h = Number(hh);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${mm} ${ampm}`;
+}
 function todayISO(): string {
   const d = new Date();
   return d.toISOString().slice(0, 10);
@@ -110,10 +119,17 @@ export default function DailyTaskPlannerV2() {
     return list.length ? timeToMinutes(list[list.length - 1].endTime) : null;
   })();
 
-  const startMinAttr = previousEndMinutes
-    ? minutesToTime(previousEndMinutes)
-    : "00:00";
+  type PendingForm = {
+    name: string;
+    durationMinutes: number;
+    startTime: string;
+    endTime: string;
+    isEdit: boolean;
+    editId?: string | null;
+  } | null;
 
+  const [bedtimeModalOpen, setBedtimeModalOpen] = useState(false);
+  const [pendingForm, setPendingForm] = useState<PendingForm>(null);
   function calcEndTimeFromStart(
     startStr: string,
     durMin: number
@@ -125,44 +141,17 @@ export default function DailyTaskPlannerV2() {
     return minutesToTime(endMin);
   }
 
-  function addOrUpdateTask(e?: React.FormEvent<HTMLFormElement>) {
-    if (e) e.preventDefault();
-    setError("");
-    const duration = Number(durHours) * 60 + Number(durMinutes);
-    if (!name.trim()) return setError("Give the task a name.");
-    if (!startTime) return setError("Pick a start time.");
-    if (duration <= 0) return setError("Duration must be greater than 0.");
-
-    const startMin = timeToMinutes(startTime) ?? 0;
+  function commitTask(form: Exclude<PendingForm, null>) {
     const list = tasksForDate(currentDate);
-
-    // if creating a new task ensure it doesn't start before previous end
-    if (
-      !editTask &&
-      list.length &&
-      startMin < (timeToMinutes(list[list.length - 1].endTime) ?? 0)
-    ) {
-      return setError(
-        "Start time cannot be earlier than the previous task's end time."
-      );
-    }
-
-    const endTime = calcEndTimeFromStart(startTime, duration);
-    if (!endTime)
-      return setError(
-        "Task would end past midnight. Pick a shorter duration or earlier start."
-      );
-
-    if (editTask) {
-      // update existing
+    if (form.isEdit && form.editId) {
       const updated = list.map((t) =>
-        t.id === editTask.id
+        t.id === form.editId
           ? {
               ...t,
-              name: name.trim(),
-              durationMinutes: duration,
-              startTime,
-              endTime,
+              name: form.name.trim(),
+              durationMinutes: form.durationMinutes,
+              startTime: form.startTime,
+              endTime: form.endTime,
             }
           : t
       );
@@ -171,23 +160,74 @@ export default function DailyTaskPlannerV2() {
     } else {
       const newTask: Task = {
         id: String(Date.now()) + Math.random().toString(36).slice(2, 7),
-        name: name.trim(),
-        durationMinutes: duration,
-        startTime,
-        endTime,
+        name: form.name.trim(),
+        durationMinutes: form.durationMinutes,
+        startTime: form.startTime,
+        endTime: form.endTime,
         done: false,
       };
       setData((d) => ({
         ...d,
         [currentDate]: [...tasksForDate(currentDate), newTask],
       }));
-      setStartTime(endTime); // auto chain
+      setStartTime(form.endTime);
     }
 
     // reset fields for next entry
     setName("");
     setDurHours(0);
     setDurMinutes(30);
+    setPendingForm(null);
+    setBedtimeModalOpen(false);
+  }
+
+  function addOrUpdateTask(e?: React.FormEvent<HTMLFormElement>) {
+    if (e) e.preventDefault();
+    setError("");
+    const duration = Number(durHours) * 60 + Number(durMinutes);
+    if (!name.trim()) return setError("Give the task a name.");
+    if (!startTime) return setError("Pick a start time.");
+    if (duration <= 0) return setError("Duration must be greater than 0.");
+    const endTime = calcEndTimeFromStart(startTime, duration);
+    if (!endTime)
+      return setError(
+        "Task would end past midnight. Pick a shorter duration or earlier start."
+      );
+    // If the task ends at or after 10:00 PM (bed time), show our custom modal
+    const endMin = timeToMinutes(endTime) ?? 0;
+    const BEDTIME_MIN = 22 * 60; // 10:00 PM
+    if (endMin >= BEDTIME_MIN) {
+      // store pending form and open modal
+      setPendingForm({
+        name,
+        durationMinutes: duration,
+        startTime,
+        endTime,
+        isEdit: Boolean(editTask),
+        editId: editTask?.id ?? null,
+      });
+      setBedtimeModalOpen(true);
+      return;
+    }
+
+    // commit immediately when not prompting
+    commitTask({
+      name,
+      durationMinutes: duration,
+      startTime,
+      endTime,
+      isEdit: Boolean(editTask),
+      editId: editTask?.id ?? null,
+    });
+  }
+
+  function handleModalConfirm() {
+    if (pendingForm) commitTask(pendingForm);
+  }
+
+  function handleModalCancel() {
+    setPendingForm(null);
+    setBedtimeModalOpen(false);
   }
 
   function toggleDone(date: string, id: string) {
@@ -265,14 +305,18 @@ export default function DailyTaskPlannerV2() {
       if (startDelta > 0 && startDelta < 24 * 3600 * 1000) {
         entry.start = window.setTimeout(() => {
           new Notification(`Task starting: ${task.name}`, {
-            body: `${task.startTime} → ${task.endTime}`,
+            body: `${formatTime12(task.startTime)} → ${formatTime12(
+              task.endTime
+            )}`,
           });
         }, startDelta);
       }
       if (endDelta > 0 && endDelta < 24 * 3600 * 1000) {
         entry.end = window.setTimeout(() => {
           new Notification(`Task ended: ${task.name}`, {
-            body: `${task.startTime} → ${task.endTime}`,
+            body: `${formatTime12(task.startTime)} → ${formatTime12(
+              task.endTime
+            )}`,
           });
         }, endDelta);
       }
@@ -389,7 +433,7 @@ export default function DailyTaskPlannerV2() {
 
   // ---------- UI ----------
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white p-5 sm:p-10">
+    <div className="bg-gradient-to-b from-slate-50 to-white p-5 sm:px-10">
       <div className="max-w-6xl mx-auto">
         <header className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -498,7 +542,6 @@ export default function DailyTaskPlannerV2() {
                     type="time"
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
-                    min={startMinAttr}
                     max="23:59"
                     className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                   />
@@ -621,52 +664,60 @@ export default function DailyTaskPlannerV2() {
                   </div>
                 )}
 
-                <ul className="flex flex-col gap-3">
-                  {tasksForDate(currentDate).map((t) => (
-                    <li
-                      key={t.id}
-                      className="flex items-center justify-between gap-3"
-                    >
-                      <div className="flex items-start gap-3">
-                        <input
-                          id={`chk-${t.id}`}
-                          type="checkbox"
-                          checked={t.done}
-                          onChange={() => toggleDone(currentDate, t.id)}
-                          className="mt-1 w-4 h-4"
-                        />
-                        <div>
-                          <div
-                            className={`font-medium ${
-                              t.done ? "line-through text-slate-400" : ""
-                            }`}
-                          >
-                            {t.name}
+                <div className="mt-2">
+                  <div className="text-sm text-slate-500 mb-2">
+                    Tasks for the day — scroll this list if it gets long
+                  </div>
+                  <div className="max-h-[48vh] overflow-auto pr-5">
+                    <ul className="flex flex-col gap-3">
+                      {tasksForDate(currentDate).map((t) => (
+                        <li
+                          key={t.id}
+                          className="flex items-center justify-between gap-3"
+                        >
+                          <div className="flex items-start gap-3">
+                            <input
+                              id={`chk-${t.id}`}
+                              type="checkbox"
+                              checked={t.done}
+                              onChange={() => toggleDone(currentDate, t.id)}
+                              className="mt-1 w-4 h-4"
+                            />
+                            <div>
+                              <div
+                                className={`font-medium ${
+                                  t.done ? "line-through text-slate-400" : ""
+                                }`}
+                              >
+                                {t.name}
+                              </div>
+                              <div className="text-xs text-slate-500">
+                                {formatTime12(t.startTime)} →{" "}
+                                {formatTime12(t.endTime)} •{" "}
+                                {minutesToReadable(t.durationMinutes)}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-xs text-slate-500">
-                            {t.startTime} → {t.endTime} •{" "}
-                            {minutesToReadable(t.durationMinutes)}
-                          </div>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => startEdit(t)}
-                          className="text-xs px-2 py-1 rounded-md border"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => removeTask(currentDate, t.id)}
-                          className="text-xs px-2 py-1 rounded-md border text-red-600"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => startEdit(t)}
+                              className="text-xs px-2 py-1 rounded-md border"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => removeTask(currentDate, t.id)}
+                              className="text-xs px-2 py-1 rounded-md border text-red-600"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
 
                 <div className="mt-4 flex gap-2">
                   <button
@@ -740,8 +791,12 @@ export default function DailyTaskPlannerV2() {
                           {tasksForDate(date).map((t) => (
                             <tr key={t.id} className="border-t">
                               <td className="px-2 py-2">{t.name}</td>
-                              <td className="px-2 py-2">{t.startTime}</td>
-                              <td className="px-2 py-2">{t.endTime}</td>
+                              <td className="px-2 py-2">
+                                {formatTime12(t.startTime)}
+                              </td>
+                              <td className="px-2 py-2">
+                                {formatTime12(t.endTime)}
+                              </td>
                               <td className="px-2 py-2">
                                 {minutesToReadable(t.durationMinutes)}
                               </td>
@@ -763,6 +818,35 @@ export default function DailyTaskPlannerV2() {
           Suggestions: try the CSV export to back up your history. Notifications
           work while the page is open and has permission.
         </footer>
+        {bedtimeModalOpen && pendingForm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/50"
+              onClick={handleModalCancel}
+            />
+            <div className="relative card p-6 rounded-lg w-full max-w-md z-10">
+              <h3 className="text-lg font-medium mb-2">Bedtime warning</h3>
+              <p className="text-sm text-slate-500 mb-4">
+                This task ends at or after 10:00 PM (your bedtime). Do you want
+                to continue and save it?
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={handleModalCancel}
+                  className="px-3 py-2 rounded-md border"
+                >
+                  No
+                </button>
+                <button
+                  onClick={handleModalConfirm}
+                  className="px-3 py-2 rounded-md bg-sky-600 text-white"
+                >
+                  Yes
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
