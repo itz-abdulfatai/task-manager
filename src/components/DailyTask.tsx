@@ -513,8 +513,8 @@ export default function DailyTaskPlannerV2() {
                 </datalist>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
+              <div className="grid max-sm:grid-rows-3 sm:grid-cols-3 sm:gap-3">
+                <div className="max-sm:h-[90px]">
                   <label className="text-sm text-slate-500">Hours</label>
                   <input
                     type="number"
@@ -525,7 +525,7 @@ export default function DailyTaskPlannerV2() {
                     className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                   />
                 </div>
-                <div>
+                <div className="max-sm:h-[90px]">
                   <label className="text-sm text-slate-500">Minutes</label>
                   <input
                     type="number"
@@ -536,7 +536,7 @@ export default function DailyTaskPlannerV2() {
                     className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                   />
                 </div>
-                <div>
+                <div className="max-sm:h-[90px]">
                   <label className="text-sm text-slate-500">Start time</label>
                   <input
                     type="time"
@@ -545,7 +545,7 @@ export default function DailyTaskPlannerV2() {
                     max="23:59"
                     className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                   />
-                  <div className="mt-2 flex gap-2">
+                  <div className="mt-5 flex gap-2">
                     <button
                       type="button"
                       onClick={setStartToPreviousEnd}
@@ -566,7 +566,7 @@ export default function DailyTaskPlannerV2() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 justify-between">
+              <div className="flex flex-col sm:flex-row max-sm:mt-5 sm:items-center gap-3 justify-between">
                 <div className="text-sm text-slate-500">
                   End time will be auto-calculated after adding.
                 </div>
