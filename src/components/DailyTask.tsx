@@ -389,7 +389,7 @@ export default function DailyTaskPlannerV2() {
 
   // ---------- UI ----------
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white p-6 sm:p-10">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white p-5 sm:p-10">
       <div className="max-w-6xl mx-auto">
         <header className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
